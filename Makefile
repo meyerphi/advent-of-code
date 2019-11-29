@@ -1,5 +1,5 @@
 %: bin/% data/%.in
 	$^
 
-bin/%: src/%.rs
+bin/%: src/day%.rs
 	rustc -o $@ $<

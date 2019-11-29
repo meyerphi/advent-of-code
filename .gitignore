@@ -1,5 +1,8 @@
 # binary folder
 bin/
 
+# cargo target folder
+target/
+
 # Visual Studio Code folder
 .vscode/

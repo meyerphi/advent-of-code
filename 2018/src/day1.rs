@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::env;
 use std::io::BufRead;
 
+#[allow(dead_code)]
 fn main() {
     let filename = env::args().nth(1).expect("no filename given");
 
@@ -16,19 +17,17 @@ fn main() {
                 .expect("could not parse number")
         })
         .collect();
-    let result: i32 = std::iter::Sum::sum(numbers.iter());
+    let result: i32 = numbers.iter().sum();
     println!("Resulting frequency: {}", result);
 
     let mut visited = HashSet::new();
     let mut x = 0;
     visited.insert(x);
-    let mut i = 0;
-    loop {
-        x += numbers[i];
+    for n in numbers.iter().cycle() {
+        x += n;
         if !visited.insert(x) {
-            println!("First frequency reached twice: {}", x);
             break;
         }
-        i = (i + 1) % numbers.len();
     }
+    println!("First frequency reached twice: {}", x);
 }
