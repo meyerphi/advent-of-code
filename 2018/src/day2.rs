@@ -22,16 +22,12 @@ fn main() {
 
     for (i, x) in boxes.iter().enumerate() {
         for y in boxes.iter().skip(i + 1) {
-            let mut diffs = 0;
-            let mut common_letters: String = String::with_capacity(x.len());
-            for (c, d) in x.chars().zip(y.chars()) {
-                if c == d {
-                    common_letters.push(c);
-                } else {
-                    diffs += 1;
-                }
-            }
-            if diffs == 1 {
+            let common_letters: String = x
+                .chars()
+                .zip(y.chars())
+                .filter_map(|(c, d)| if c == d { Some(c) } else { None })
+                .collect();
+            if common_letters.len() + 1 == x.len() {
                 println!("Common letters: {}", common_letters);
             }
         }
