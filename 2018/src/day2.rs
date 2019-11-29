@@ -1,18 +1,10 @@
 use std::collections::HashMap;
-use std::env;
-use std::io::BufRead;
+#[path = "common.rs"]
+mod common;
 
 #[allow(dead_code)]
 fn main() {
-    let filename = env::args().nth(1).expect("no filename given");
-
-    let file = std::fs::File::open(filename).expect("could not open file");
-    let buffer = std::io::BufReader::new(file);
-
-    let boxes: Vec<String> = buffer
-        .lines()
-        .map(|l| l.expect("could not read line"))
-        .collect();
+    let boxes: Vec<String> = common::get_lines();
     let mut two = 0;
     let mut three = 0;
     for x in boxes {

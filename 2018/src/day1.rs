@@ -1,21 +1,12 @@
 use std::collections::HashSet;
-use std::env;
-use std::io::BufRead;
+#[path = "common.rs"]
+mod common;
 
 #[allow(dead_code)]
 fn main() {
-    let filename = env::args().nth(1).expect("no filename given");
-
-    let file = std::fs::File::open(filename).expect("could not open file");
-    let buffer = std::io::BufReader::new(file);
-
-    let numbers: Vec<i32> = buffer
-        .lines()
-        .map(|l| {
-            l.expect("could not read line")
-                .parse::<i32>()
-                .expect("could not parse number")
-        })
+    let numbers: Vec<i32> = common::get_lines()
+        .into_iter()
+        .map(|l| l.parse::<i32>().expect("could not parse number"))
         .collect();
     let result: i32 = numbers.iter().sum();
     println!("Resulting frequency: {}", result);
