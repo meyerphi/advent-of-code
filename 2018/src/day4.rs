@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::str::FromStr;
 #[path = "common.rs"]
 mod common;
@@ -82,7 +83,9 @@ impl FromStr for Entry {
     }
 }
 
-fn choose_guard(entries: Vec<Entry>) -> u32 {
+type SleepMap = std::collections::HashMap<u32, std::vec::Vec<u32>>;
+
+fn build_map(entries: Vec<Entry>) -> SleepMap {
     let mut sleeping_minutes = HashMap::new();
     let mut guard = 0;
     let mut sleep_begin = 0;
@@ -100,13 +103,40 @@ fn choose_guard(entries: Vec<Entry>) -> u32 {
             }
         }
     }
-    let (chosen_guard, _) = sleeping_minutes.iter().max_by_key(|(_, m)| m.len()).unwrap();
+    sleeping_minutes
+}
 
+fn frequency_map<K: Eq + Hash, I: IntoIterator<Item = K>>(iter: I) -> HashMap<K, u32> {
     let mut frequency = HashMap::new();
-    for minute in sleeping_minutes.get(&chosen_guard).unwrap() {
-        *frequency.entry(minute).or_insert(0) += 1;
+    for x in iter {
+        *frequency.entry(x).or_insert(0) += 1;
     }
+    frequency
+}
+
+fn choose_guard_strategy1(map: &SleepMap) -> u32 {
+    let (chosen_guard, sleep_map) = map.iter().max_by_key(|(_, m)| m.len()).unwrap();
+
+    let frequency = frequency_map(sleep_map);
     let (&chosen_minute, _) = frequency.iter().max_by_key(|(_, &days)| days).unwrap();
+
+    chosen_guard * chosen_minute
+}
+
+fn choose_guard_strategy2(map: &SleepMap) -> u32 {
+    let mut chosen_guard = 0;
+    let mut chosen_minute = 0;
+    let mut max_times = 0;
+
+    for (&guard, sleep_map) in map {
+        let frequency = frequency_map(sleep_map);
+        let (&&max_minute, &days) = frequency.iter().max_by_key(|(_, &days)| days).unwrap();
+        if days >= max_times {
+            chosen_guard = guard;
+            chosen_minute = max_minute;
+            max_times = days;
+        }
+    }
 
     chosen_guard * chosen_minute
 }
@@ -118,6 +148,17 @@ fn main() {
         .map(|l| l.parse::<Entry>().expect("could not parse entry"))
         .collect();
     entries.sort();
-    let result = choose_guard(entries);
-    println!("ID of chosen guard * chosen minute: {}", result);
+    let map = build_map(entries);
+
+    let result1 = choose_guard_strategy1(&map);
+    println!(
+        "Strategy 1: ID of chosen guard * chosen minute: {}",
+        result1
+    );
+
+    let result2 = choose_guard_strategy2(&map);
+    println!(
+        "Strategy 2: ID of chosen guard * chosen minute: {}",
+        result2
+    );
 }
