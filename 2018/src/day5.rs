@@ -41,7 +41,6 @@ fn shortest_with_deletion(polymer: &str) -> String {
     reacted.min_by_key(|s| s.len()).unwrap()
 }
 
-#[allow(dead_code)]
 fn main() {
     let input: Vec<String> = common::get_lines();
 

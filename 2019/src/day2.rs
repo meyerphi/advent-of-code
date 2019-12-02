@@ -47,7 +47,6 @@ fn replace_input(program: &[i32], one: i32, two: i32) -> Vec<i32> {
     state
 }
 
-#[allow(dead_code)]
 #[allow(clippy::inconsistent_digit_grouping)]
 fn main() {
     let input: Vec<Vec<i32>> = common::get_lines()

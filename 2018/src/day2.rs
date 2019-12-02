@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 mod common;
 
-#[allow(dead_code)]
 fn main() {
     let boxes: Vec<String> = common::get_lines();
     let mut two = 0;

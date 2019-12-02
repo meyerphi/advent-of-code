@@ -23,7 +23,6 @@ fn part2(masses: &[i32]) -> i32 {
     masses.iter().map(|&m| fuel_for_mass(m)).sum()
 }
 
-#[allow(dead_code)]
 fn main() {
     let input: Vec<i32> = common::get_lines()
         .into_iter()

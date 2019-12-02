@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 mod common;
 
-#[allow(dead_code)]
 fn main() {
     let numbers: Vec<i32> = common::get_lines()
         .into_iter()

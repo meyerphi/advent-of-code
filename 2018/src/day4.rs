@@ -140,7 +140,6 @@ fn choose_guard_strategy2(map: &SleepMap) -> u32 {
     chosen_guard * chosen_minute
 }
 
-#[allow(dead_code)]
 fn main() {
     let mut entries: Vec<Entry> = common::get_lines()
         .into_iter()

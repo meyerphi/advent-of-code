@@ -1,7 +1,6 @@
 use std::env;
 use std::io::BufRead;
 
-#[allow(dead_code)]
 pub fn get_lines() -> Vec<String> {
     let filename = env::args().nth(1).expect("no filename given");
 

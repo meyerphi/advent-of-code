@@ -25,7 +25,6 @@ impl Cut {
     }
 }
 
-#[allow(dead_code)]
 fn main() {
     let cuts: Vec<Cut> = common::get_lines().into_iter().map(Cut::parse).collect();
 
