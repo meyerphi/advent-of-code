@@ -19,7 +19,7 @@ fn parse_opcode(opcode: i32) -> OpCode {
     }
 }
 
-fn part1(program: &[i32]) -> i32 {
+fn run_program(program: &[i32]) -> i32 {
     let mut state = program.to_vec();
     let mut pointer = 0;
     loop {
@@ -41,7 +41,7 @@ fn part1(program: &[i32]) -> i32 {
     }
 }
 
-fn replace(program: &[i32], one: i32, two: i32) -> Vec<i32> {
+fn replace_input(program: &[i32], one: i32, two: i32) -> Vec<i32> {
     let mut state = program.to_vec();
     state[1] = one;
     state[2] = two;
@@ -59,9 +59,24 @@ fn main() {
         })
         .collect();
     for program in input {
-        let replaced = replace(&program, 12, 2);
-        let result1 = part1(&replaced);
+        let replaced = replace_input(&program, 12, 2);
+        let result1 = run_program(&replaced);
         println!("Part1: Program output is: {}", result1);
+
+        'part2: for noun in 0..100 {
+            for verb in 0..100 {
+                let replaced = replace_input(&program, noun, verb);
+                let result2 = run_program(&replaced);
+                if result2 == 19_690_720 {
+                    let answer = 100 * noun + verb;
+                    println!(
+                        "Part2: noun = {}, verb = {}, 100 * noun + verb = {}",
+                        noun, verb, answer
+                    );
+                    break 'part2;
+                }
+            }
+        }
     }
 }
 
@@ -71,14 +86,17 @@ mod tests {
 
     #[test]
     fn test_part1_sample() {
-        assert_eq!(part1(&[1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]), 3500);
+        assert_eq!(
+            run_program(&[1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]),
+            3500
+        );
     }
 
     #[test]
     fn test_part1_small() {
-        assert_eq!(part1(&[1, 0, 0, 0, 99]), 2);
-        assert_eq!(part1(&[2, 5, 0, 0, 99, 3]), 6);
-        assert_eq!(part1(&[2, 4, 4, 0, 99, 0]), 9801);
-        assert_eq!(part1(&[1, 1, 1, 4, 99, 5, 6, 0, 99]), 30);
+        assert_eq!(run_program(&[1, 0, 0, 0, 99]), 2);
+        assert_eq!(run_program(&[2, 5, 0, 0, 99, 3]), 6);
+        assert_eq!(run_program(&[2, 4, 4, 0, 99, 0]), 9801);
+        assert_eq!(run_program(&[1, 1, 1, 4, 99, 5, 6, 0, 99]), 30);
     }
 }
