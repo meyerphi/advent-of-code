@@ -49,6 +49,7 @@ fn replace_input(program: &[i32], one: i32, two: i32) -> Vec<i32> {
 }
 
 #[allow(dead_code)]
+#[allow(clippy::inconsistent_digit_grouping)]
 fn main() {
     let input: Vec<Vec<i32>> = common::get_lines()
         .into_iter()
@@ -63,11 +64,11 @@ fn main() {
         let result1 = run_program(&replaced);
         println!("Part1: Program output is: {}", result1);
 
-        'part2: for noun in 0..100 {
-            for verb in 0..100 {
+        'part2: for noun in 0..=99 {
+            for verb in 0..=99 {
                 let replaced = replace_input(&program, noun, verb);
                 let result2 = run_program(&replaced);
-                if result2 == 19_690_720 {
+                if result2 == 1969_07_20 { // date of moon landing
                     let answer = 100 * noun + verb;
                     println!(
                         "Part2: noun = {}, verb = {}, 100 * noun + verb = {}",
