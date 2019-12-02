@@ -1,10 +1,2 @@
-BIN_FOLDER=bin
-
-%: bin/% data/%.in
-	$^
-
-$(BIN_FOLDER):
-	mkdir -p $(BIN_FOLDER)
-
-bin/%: src/day%.rs | $(BIN_FOLDER)
-	rustc -o $@ $<
+%: src/day%.rs data/%.in
+	cargo run --bin=day$@ data/$@.in
