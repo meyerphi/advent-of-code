@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::str::FromStr;
-#[path = "common.rs"]
 mod common;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]

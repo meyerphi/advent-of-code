@@ -1,4 +1,3 @@
-#[path = "common.rs"]
 mod common;
 
 fn react(polymer: &str) -> String {

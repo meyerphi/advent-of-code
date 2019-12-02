@@ -1,4 +1,3 @@
-#[path = "common.rs"]
 mod common;
 
 fn simple_fuel_for_mass(m: i32) -> i32 {

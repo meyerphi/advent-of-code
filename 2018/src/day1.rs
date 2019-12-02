@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-#[path = "common.rs"]
 mod common;
 
 #[allow(dead_code)]
