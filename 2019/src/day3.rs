@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::str::FromStr;
@@ -59,7 +60,7 @@ impl FromStr for DirectedPath {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
 struct Point2D {
     x: i64,
     y: i64,
@@ -80,8 +81,18 @@ impl Point2D {
         i64::abs(self.x) + i64::abs(self.y)
     }
 }
+impl std::ops::Sub for Point2D {
+    type Output = Point2D;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+    fn sub(self, other: Point2D) -> Point2D {
+        Point2D {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
 struct Point3D {
     x: i64,
     y: i64,
@@ -133,6 +144,12 @@ struct Edge {
 #[derive(Debug)]
 struct Path {
     path: Vec<Point2D>,
+}
+
+impl PartialEq for Path {
+    fn eq(&self, other: &Path) -> bool {
+        self.path == other.path
+    }
 }
 
 impl From<&DirectedPath> for Path {
@@ -207,6 +224,9 @@ impl Edge {
             None
         }
     }
+    fn manhattan_length(&self) -> i64 {
+        (self.p - self.q).manhattan_norm()
+    }
 }
 
 impl Path {
@@ -227,14 +247,86 @@ impl Path {
         }
         intersections
     }
+    // insert all points in inter into the path
+    // assumes that all of the points in inter are on some edge
+    fn split_with_intersections(&self, inter: &[Point2D]) -> Path {
+        let mut new_path = Vec::new();
+        new_path.push(self.path[0]);
+        for e in self.edge_iter() {
+            let origin = e.p;
+            let mut new_points = Vec::new();
+            for &p in inter {
+                if p != e.p && p != e.q && e.is_point_between(p) {
+                    new_points.push(p);
+                }
+            }
+            new_points.sort_by_key(|&p| Edge { p: origin, q: p }.manhattan_length());
+            for p in new_points {
+                new_path.push(p);
+            }
+            new_path.push(e.q);
+        }
+        Path { path: new_path }
+    }
+    fn compute_distances(&self) -> HashMap<Point2D, i64> {
+        let mut map = HashMap::new();
+        let mut start_dist = 0;
+        map.insert(self.path[0], start_dist);
+        for e in self.edge_iter() {
+            // note: do *not* take a shortcut if the start point
+            // was already visited
+            // let start_dist = *map.get(&e.p).unwrap();
+            let end_dist = start_dist + e.manhattan_length();
+            start_dist = end_dist;
+            map.entry(e.q).or_insert(end_dist);
+        }
+        map
+    }
+}
+
+fn non_trivial_intersections(p1: &Path, p2: &Path) -> Vec<Point2D> {
+    p1.intersect(&p2)
+        .iter()
+        .cloned()
+        .filter(|&p| p != Point2D::zero())
+        .collect()
 }
 
 fn part1(p1: &Path, p2: &Path) -> Option<i64> {
-    let intersections = p1.intersect(&p2);
-    intersections
+    non_trivial_intersections(p1, p2)
         .iter()
-        .filter(|&&p| p != Point2D::zero())
         .map(|p| p.manhattan_norm())
+        .min()
+}
+
+// adds all self-intersections and intersections of p1 and p2
+// to both paths and returns the new paths (p1', p2')
+fn extend_with_intersections(p1: &Path, p2: &Path) -> (Path, Path) {
+    let mut p1inter = p1.intersect(&p1);
+    let mut p2inter = p1.intersect(&p1);
+    let intersections = p1.intersect(&p2);
+    p1inter.extend(intersections.iter().cloned());
+    p2inter.extend(intersections.iter().cloned());
+    let p1new = p1.split_with_intersections(&p1inter);
+    let p2new = p2.split_with_intersections(&p2inter);
+    (p1new, p2new)
+}
+
+fn distance_to_intersections(p1: &Path, p2: &Path) -> Vec<(Point2D, i64, i64)> {
+    let inter = non_trivial_intersections(p1, p2);
+    let (p1new, p2new) = extend_with_intersections(p1, p2);
+    let dist1 = p1new.compute_distances();
+    let dist2 = p2new.compute_distances();
+    inter
+        .iter()
+        .map(|p| (*p, *dist1.get(&p).unwrap(), *dist2.get(&p).unwrap()))
+        .collect()
+}
+
+fn part2(p1: &Path, p2: &Path) -> Option<i64> {
+    distance_to_intersections(&p1, &p2)
+        .iter()
+        .map(|(_, d1, d2)| d1 + d2)
         .min()
 }
 
@@ -246,23 +338,51 @@ fn main() {
     assert_eq!(paths.len(), 2);
     let p1 = &paths[0];
     let p2 = &paths[1];
-    let r = part1(&p1, &p2);
-    if let Some(d) = r {
-        println!("Closest intersection has distance {}", d);
+
+    let r1 = part1(&p1, &p2);
+    if let Some(d) = r1 {
+        println!("Part1: Minimal distance {}", d);
     } else {
         println!("No non-trivial intersection found");
     }
-    
+
+    let r2 = part2(&p1, &p2);
+    if let Some(d) = r2 {
+        println!("Part2: Minimal distance {}", d);
+    } else {
+        println!("No non-trivial intersection found");
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_intersection() {
+    fn example0() -> (Path, Path) {
         let p1 = "R8,U5,L5,D3".parse::<Path>().unwrap();
         let p2 = "U7,R6,D4,L4".parse::<Path>().unwrap();
+        (p1, p2)
+    }
+    fn example1() -> (Path, Path) {
+        let p1 = "R75,D30,R83,U83,L12,D49,R71,U7,L72"
+            .parse::<Path>()
+            .unwrap();
+        let p2 = "U62,R66,U55,R34,D71,R55,D58,R83".parse::<Path>().unwrap();
+        (p1, p2)
+    }
+    fn example2() -> (Path, Path) {
+        let p1 = "R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51"
+            .parse::<Path>()
+            .unwrap();
+        let p2 = "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"
+            .parse::<Path>()
+            .unwrap();
+        (p1, p2)
+    }
+
+    #[test]
+    fn test_intersection() {
+        let (p1, p2) = example0();
         let mut inter = p1.intersect(&p2);
         let mut expected = vec![
             Point2D { x: 0, y: 0 },
@@ -284,17 +404,70 @@ mod tests {
 
     #[test]
     fn test_part1_ex1() {
-        let p1 = "R75,D30,R83,U83,L12,D49,R71,U7,L72".parse::<Path>().unwrap();
-        let p2 = "U62,R66,U55,R34,D71,R55,D58,R83".parse::<Path>().unwrap();
+        let (p1, p2) = example1();
         let d = part1(&p1, &p2);
         assert_eq!(d, Some(159));
     }
 
     #[test]
     fn test_part1_ex2() {
-        let p1 = "R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51".parse::<Path>().unwrap();
-        let p2 = "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7".parse::<Path>().unwrap();
+        let (p1, p2) = example2();
         let d = part1(&p1, &p2);
         assert_eq!(d, Some(135));
+    }
+
+    #[test]
+    fn test_extend_intersections() {
+        let (p1, p2) = example0();
+        let (p1new, p2new) = extend_with_intersections(&p1, &p2);
+        let p1expected = Path {
+            path: vec![
+                Point2D { x: 0, y: 0 },
+                Point2D { x: 8, y: 0 },
+                Point2D { x: 8, y: 5 },
+                Point2D { x: 6, y: 5 },
+                Point2D { x: 3, y: 5 },
+                Point2D { x: 3, y: 3 },
+                Point2D { x: 3, y: 2 },
+            ],
+        };
+        let p2expected = Path {
+            path: vec![
+                Point2D { x: 0, y: 0 },
+                Point2D { x: 0, y: 7 },
+                Point2D { x: 6, y: 7 },
+                Point2D { x: 6, y: 5 },
+                Point2D { x: 6, y: 3 },
+                Point2D { x: 3, y: 3 },
+                Point2D { x: 2, y: 3 },
+            ],
+        };
+        assert_eq!(p1new, p1expected);
+        assert_eq!(p2new, p2expected);
+    }
+    #[test]
+    fn test_part2_ex0() {
+        let (p1, p2) = example0();
+        let mut r = distance_to_intersections(&p1, &p2);
+        let mut expected = vec![
+            (Point2D { x: 6, y: 5 }, 15, 15),
+            (Point2D { x: 3, y: 3 }, 20, 20),
+        ];
+        r.sort();
+        expected.sort();
+        assert_eq!(r, expected);
+    }
+    #[test]
+    fn test_part2_ex1() {
+        let (p1, p2) = example1();
+        let d = part2(&p1, &p2);
+        assert_eq!(d, Some(610));
+    }
+
+    #[test]
+    fn test_part2_ex2() {
+        let (p1, p2) = example2();
+        let d = part2(&p1, &p2);
+        assert_eq!(d, Some(410));
     }
 }
