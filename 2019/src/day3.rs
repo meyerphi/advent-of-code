@@ -78,7 +78,7 @@ impl Point2D {
     }
 
     fn manhattan_norm(&self) -> i64 {
-        i64::abs(self.x) + i64::abs(self.y)
+        self.x.abs() + self.y.abs()
     }
 }
 impl std::ops::Sub for Point2D {
@@ -202,7 +202,9 @@ impl FromStr for Path {
 }
 
 impl Edge {
-    fn is_point_between(&self, r: Point2D) -> bool {
+    // tests if point r is on the edge, assuming it
+    // it is on the line extended by the edge
+    fn contains_point(&self, r: Point2D) -> bool {
         let min_x = std::cmp::min(self.p.x, self.q.x);
         let max_x = std::cmp::max(self.p.x, self.q.x);
         let min_y = std::cmp::min(self.p.y, self.q.y);
@@ -218,7 +220,7 @@ impl Edge {
         // even if there is a unique intersection point
         let r = Point2D::try_from(p1.cross(&q1).cross(&(p2.cross(&q2)))).ok()?;
         // test if point lies on both edges
-        if self.is_point_between(r) && other.is_point_between(r) {
+        if self.contains_point(r) && other.contains_point(r) {
             Some(r)
         } else {
             None
@@ -249,14 +251,14 @@ impl Path {
     }
     // insert all points in inter into the path
     // assumes that all of the points in inter are on some edge
-    fn split_with_intersections(&self, inter: &[Point2D]) -> Path {
+    fn with_intersections(&self, inter: &[Point2D]) -> Path {
         let mut new_path = Vec::new();
         new_path.push(self.path[0]);
         for e in self.edge_iter() {
             let origin = e.p;
             let mut new_points = Vec::new();
             for &p in inter {
-                if p != e.p && p != e.q && e.is_point_between(p) {
+                if p != e.p && p != e.q && e.contains_point(p) {
                     new_points.push(p);
                 }
             }
@@ -286,15 +288,14 @@ impl Path {
 
 fn non_trivial_intersections(p1: &Path, p2: &Path) -> Vec<Point2D> {
     p1.intersect(&p2)
-        .iter()
-        .cloned()
+        .into_iter()
         .filter(|&p| p != Point2D::zero())
         .collect()
 }
 
 fn part1(p1: &Path, p2: &Path) -> Option<i64> {
     non_trivial_intersections(p1, p2)
-        .iter()
+        .into_iter()
         .map(|p| p.manhattan_norm())
         .min()
 }
@@ -307,8 +308,8 @@ fn extend_with_intersections(p1: &Path, p2: &Path) -> (Path, Path) {
     let intersections = p1.intersect(&p2);
     p1inter.extend(intersections.iter().cloned());
     p2inter.extend(intersections.iter().cloned());
-    let p1new = p1.split_with_intersections(&p1inter);
-    let p2new = p2.split_with_intersections(&p2inter);
+    let p1new = p1.with_intersections(&p1inter);
+    let p2new = p2.with_intersections(&p2inter);
     (p1new, p2new)
 }
 
@@ -318,14 +319,14 @@ fn distance_to_intersections(p1: &Path, p2: &Path) -> Vec<(Point2D, i64, i64)> {
     let dist1 = p1new.compute_distances();
     let dist2 = p2new.compute_distances();
     inter
-        .iter()
-        .map(|p| (*p, *dist1.get(&p).unwrap(), *dist2.get(&p).unwrap()))
+        .into_iter()
+        .map(|p| (p, *dist1.get(&p).unwrap(), *dist2.get(&p).unwrap()))
         .collect()
 }
 
 fn part2(p1: &Path, p2: &Path) -> Option<i64> {
     distance_to_intersections(&p1, &p2)
-        .iter()
+        .into_iter()
         .map(|(_, d1, d2)| d1 + d2)
         .min()
 }
