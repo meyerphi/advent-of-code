@@ -1,4 +1,5 @@
 mod common;
+use itertools::Itertools;
 
 fn get_digits(n: i64) -> [i8; 6] {
     let mut x = n;
@@ -34,6 +35,13 @@ fn check_criteria_part1(n: i64) -> bool {
     has_double
 }
 
+fn check_criteria_part2(n: i64) -> bool {
+    let digits = get_digits(n);
+    let has_double = digits.iter().group_by(|&d| d).into_iter().any(|(_, e)| e.count() == 2);
+    let increasing = digits.iter().fold((true, -1), |(inc, c), &d| (inc && c <= d, d)).0;
+    has_double && increasing
+}
+
 fn count_passwords<F>(start: i64, end: i64, criterion: F) -> usize
 where
     F: Fn(i64) -> bool,
@@ -54,10 +62,17 @@ fn main() {
         assert!(range.len() == 2);
         let start = range[0];
         let end = range[1];
+
         let result1 = count_passwords(start, end, check_criteria_part1);
         println!(
             "Part1: Number of matching passwords in range {}-{}: {}",
             start, end, result1
+        );
+
+        let result2 = count_passwords(start, end, check_criteria_part2);
+        println!(
+            "Part2: Number of matching passwords in range {}-{}: {}",
+            start, end, result2
         );
     }
 }
@@ -78,5 +93,12 @@ mod tests {
         assert!(check_criteria_part1(111_111));
         assert!(!check_criteria_part1(223_450));
         assert!(!check_criteria_part1(123_789));
+    }
+
+    #[test]
+    fn test_numbers_part2() {
+        assert!(check_criteria_part2(112_233));
+        assert!(!check_criteria_part2(123_444));
+        assert!(check_criteria_part2(111_122));
     }
 }
