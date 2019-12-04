@@ -15,7 +15,8 @@ fn get_digits(n: i64) -> [i8; 6] {
     d
 }
 
-fn check_criteria_part1(n: i64) -> bool {
+#[allow(dead_code)]
+fn check_criteria_part1_loop(n: i64) -> bool {
     let digits = get_digits(n);
     let mut last: i8 = -1;
     let mut has_double = false;
@@ -31,8 +32,13 @@ fn check_criteria_part1(n: i64) -> bool {
     has_double
 }
 
+fn check_criteria_part1_windows(n: i64) -> bool {
+    let digits = get_digits(n);
+    digits.windows(2).all(|w| w[0] <= w[1]) && digits.windows(2).any(|w| w[0] == w[1])
+}
+
 #[allow(dead_code)]
-fn check_criteria_part2(n: i64) -> bool {
+fn check_criteria_part2_iter(n: i64) -> bool {
     let digits = get_digits(n);
     let has_double = digits
         .iter()
@@ -46,7 +52,8 @@ fn check_criteria_part2(n: i64) -> bool {
     has_double && increasing
 }
 
-fn check_criteria_part2_fast(n: i64) -> bool {
+#[allow(dead_code)]
+fn check_criteria_part2_loop(n: i64) -> bool {
     let digits = get_digits(n);
     let mut last: i8 = -1;
     let mut digit_count = 1;
@@ -92,13 +99,13 @@ fn main() {
         let start = range[0];
         let end = range[1];
 
-        let result1 = count_passwords(start, end, check_criteria_part1);
+        let result1 = count_passwords(start, end, check_criteria_part1_windows);
         println!(
             "Part1: Number of matching passwords in range {}-{}: {}",
             start, end, result1
         );
 
-        let result2 = count_passwords(start, end, check_criteria_part2_fast);
+        let result2 = count_passwords(start, end, check_criteria_part2_loop);
         println!(
             "Part2: Number of matching passwords in range {}-{}: {}",
             start, end, result2
@@ -119,22 +126,28 @@ mod tests {
 
     #[test]
     fn test_numbers_part1() {
-        assert!(check_criteria_part1(111_111));
-        assert!(!check_criteria_part1(223_450));
-        assert!(!check_criteria_part1(123_789));
+        assert!(check_criteria_part1_loop(111_111));
+        assert!(!check_criteria_part1_loop(223_450));
+        assert!(!check_criteria_part1_loop(123_789));
+    }
+    #[test]
+    fn test_numbers_part1_windows() {
+        assert!(check_criteria_part1_windows(111_111));
+        assert!(!check_criteria_part1_windows(223_450));
+        assert!(!check_criteria_part1_windows(123_789));
     }
 
     #[test]
     fn test_numbers_part2() {
-        assert!(check_criteria_part2(112_233));
-        assert!(!check_criteria_part2(123_444));
-        assert!(check_criteria_part2(111_122));
+        assert!(check_criteria_part2_iter(112_233));
+        assert!(!check_criteria_part2_iter(123_444));
+        assert!(check_criteria_part2_iter(111_122));
     }
 
     #[test]
     fn test_numbers_part2_fast() {
-        assert!(check_criteria_part2_fast(112_233));
-        assert!(!check_criteria_part2_fast(123_444));
-        assert!(check_criteria_part2_fast(111_122));
+        assert!(check_criteria_part2_loop(112_233));
+        assert!(!check_criteria_part2_loop(123_444));
+        assert!(check_criteria_part2_loop(111_122));
     }
 }
