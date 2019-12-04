@@ -2,21 +2,17 @@ mod common;
 use itertools::Itertools;
 
 fn get_digits(n: i64) -> [i8; 6] {
-    let mut x = n;
     assert!(n >= 0);
     assert!(n <= 999_999);
-    let d0 = (x / 100_000) as i8;
-    x %= 100_000;
-    let d1 = (x / 10_000) as i8;
-    x %= 10_000;
-    let d2 = (x / 1000) as i8;
-    x %= 1000;
-    let d3 = (x / 100) as i8;
-    x %= 100;
-    let d4 = (x / 10) as i8;
-    x %= 10;
-    let d5 = x as i8;
-    [d0, d1, d2, d3, d4, d5]
+    let mut x = n;
+    let mut d = [0i8; 6];
+    const EXP: [i64; 6] = [100_000, 10_000, 1000, 100, 10, 1];
+    for i in 0..6usize {
+        let m = EXP[i];
+        d[i] = (x / m) as i8;
+        x %= m;
+    }
+    d
 }
 
 fn check_criteria_part1(n: i64) -> bool {
@@ -38,8 +34,15 @@ fn check_criteria_part1(n: i64) -> bool {
 #[allow(dead_code)]
 fn check_criteria_part2(n: i64) -> bool {
     let digits = get_digits(n);
-    let has_double = digits.iter().group_by(|&d| d).into_iter().any(|(_, e)| e.count() == 2);
-    let increasing = digits.iter().fold((true, -1), |(inc, c), &d| (inc && c <= d, d)).0;
+    let has_double = digits
+        .iter()
+        .group_by(|&d| d)
+        .into_iter()
+        .any(|(_, e)| e.count() == 2);
+    let increasing = digits
+        .iter()
+        .fold((true, -1), |(inc, c), &d| (inc && c <= d, d))
+        .0;
     has_double && increasing
 }
 
@@ -54,8 +57,7 @@ fn check_criteria_part2_fast(n: i64) -> bool {
         }
         if d == last {
             digit_count += 1;
-        }
-        else {
+        } else {
             if digit_count == 2 {
                 has_double = true;
             }
