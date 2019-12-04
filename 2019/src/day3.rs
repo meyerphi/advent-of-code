@@ -127,7 +127,7 @@ impl From<Point2D> for Point3D {
 }
 
 impl Point3D {
-    fn cross(&self, other: &Point3D) -> Point3D {
+    fn cross(self, other: Point3D) -> Point3D {
         let x = self.y * other.z - self.z * other.y;
         let y = self.z * other.x - self.x * other.z;
         let z = self.x * other.y - self.y * other.x;
@@ -218,7 +218,7 @@ impl Edge {
         let q2 = Point3D::from(other.q);
         // note: parallel edges currently yield no intersection,
         // even if there is a unique intersection point
-        let r = Point2D::try_from(p1.cross(&q1).cross(&(p2.cross(&q2)))).ok()?;
+        let r = Point2D::try_from(p1.cross(q1).cross(p2.cross(q2))).ok()?;
         // test if point lies on both edges
         if self.contains_point(r) && other.contains_point(r) {
             Some(r)
