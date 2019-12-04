@@ -34,7 +34,10 @@ fn check_criteria_part1(n: i64) -> bool {
     has_double
 }
 
-fn count_passwords<F>(start: i64, end: i64, criterion: F) -> usize    where F: Fn(i64) -> bool {
+fn count_passwords<F>(start: i64, end: i64, criterion: F) -> usize
+where
+    F: Fn(i64) -> bool,
+{
     (start..=end).filter(|&n| criterion(n)).count()
 }
 
@@ -52,7 +55,10 @@ fn main() {
         let start = range[0];
         let end = range[1];
         let result1 = count_passwords(start, end, check_criteria_part1);
-        println!("Part1: Number of matching passwords in range {}-{}: {}", start, end, result1);
+        println!(
+            "Part1: Number of matching passwords in range {}-{}: {}",
+            start, end, result1
+        );
     }
 }
 
@@ -62,9 +68,9 @@ mod tests {
 
     #[test]
     fn test_digits() {
-        assert_eq!(get_digits(122_345), [1,2,2,3,4,5]);
-        assert_eq!(get_digits(111_123), [1,1,1,1,2,3]);
-        assert_eq!(get_digits(135_679), [1,3,5,6,7,9]);
+        assert_eq!(get_digits(122_345), [1, 2, 2, 3, 4, 5]);
+        assert_eq!(get_digits(111_123), [1, 1, 1, 1, 2, 3]);
+        assert_eq!(get_digits(135_679), [1, 3, 5, 6, 7, 9]);
     }
 
     #[test]
@@ -73,5 +79,4 @@ mod tests {
         assert!(!check_criteria_part1(223_450));
         assert!(!check_criteria_part1(123_789));
     }
-
 }
