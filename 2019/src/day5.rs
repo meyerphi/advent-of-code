@@ -1,4 +1,6 @@
 mod common;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
 
 #[derive(PartialEq, Eq, Copy, Clone)]
 enum Op {
@@ -83,23 +85,61 @@ impl ProgramState {
     }
 }
 
+struct ProgramIO {
+    is: Sender<i32>,
+    or: Receiver<Option<i32>>,
+}
+
+struct OutputIterator<'a> {
+    io: &'a ProgramIO,
+}
+
+impl<'a> Iterator for OutputIterator<'a> {
+    type Item = i32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.io.next_output()
+    }
+}
+
+impl ProgramIO {
+    fn new(is: Sender<i32>, or: Receiver<Option<i32>>) -> ProgramIO {
+        ProgramIO { is, or }
+    }
+    fn send_input(&self, i: i32) {
+        self.is.send(i).expect("could not send input");
+    }
+    fn next_output(&self) -> Option<i32> {
+        self.or.recv().expect("could not send input")
+    }
+    fn output_iter(&self) -> OutputIterator {
+        OutputIterator { io: &self }
+    }
+    fn collect_outputs(&self) -> Vec<i32> {
+        self.output_iter().collect()
+    }
+}
+
 struct Program {
     program: Vec<i32>,
+    ir: Receiver<i32>,
+    os: Sender<Option<i32>>,
 }
 
 impl Program {
-    fn new(program: &[i32]) -> Program {
+    fn new(program: &[i32], ir: Receiver<i32>, os: Sender<Option<i32>>) -> Program {
         Program {
             program: program.to_vec(),
+            ir,
+            os,
         }
     }
 
-    fn run<'a>(&self, mut input: impl Iterator<Item = &'a i32>) -> Vec<i32> {
+    fn run(&self) {
         let mut state = ProgramState {
             mem: self.program.clone(),
             pointer: 0,
         };
-        let mut output: Vec<i32> = Vec::new();
         loop {
             let p = parse_opcode(state.fetch_opcode());
             match p.opcode {
@@ -114,13 +154,13 @@ impl Program {
                     state.increase_pointer(4);
                 }
                 OpCode::Input => {
-                    let i = *input.next().unwrap();
+                    let i = self.ir.recv().unwrap();
                     state.write_value(0, i);
                     state.increase_pointer(2);
                 }
                 OpCode::Output => {
                     let o = state.fetch_value(0, &p);
-                    output.push(o);
+                    self.os.send(Some(o)).unwrap();
                     state.increase_pointer(2);
                 }
                 OpCode::JumpIf(condition) => {
@@ -150,9 +190,36 @@ impl Program {
                     }
                     state.increase_pointer(4);
                 }
-                OpCode::Halt => return output,
+                OpCode::Halt => {
+                    self.os.send(None).expect("could not send halt output");
+                    break;
+                }
             }
         }
+    }
+}
+
+struct ProgramRunner {
+    program: Program,
+    io: ProgramIO,
+}
+
+impl ProgramRunner {
+    fn new(program: &[i32]) -> ProgramRunner {
+        let (is, ir) = std::sync::mpsc::channel::<i32>();
+        let (os, or) = std::sync::mpsc::channel::<Option<i32>>();
+        ProgramRunner {
+            program: Program::new(program, ir, os),
+            io: ProgramIO::new(is, or),
+        }
+    }
+
+    fn run_with(&self, inputs: &[i32]) -> Vec<i32> {
+        for &i in inputs {
+            self.io.send_input(i);
+        }
+        self.program.run();
+        self.io.collect_outputs()
     }
 }
 
@@ -166,12 +233,12 @@ fn main() {
         })
         .collect();
     for program in input {
-        let program = Program::new(&program);
+        let p = ProgramRunner::new(&program);
 
-        let output1 = program.run([1].iter());
+        let output1 = p.run_with(&[1]);
         println!("Part1: Program output is: {:?}", output1);
 
-        let output2 = program.run([5].iter());
+        let output2 = p.run_with(&[5]);
         println!("Part2: Program output is: {:?}", output2);
     }
 }
@@ -181,25 +248,39 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_threaded_run() {
+        let ProgramRunner { program, io } = ProgramRunner::new(&[3, 0, 4, 0, 99]);
+        let thread = std::thread::spawn(move || {
+            program.run();
+        });
+        io.send_input(21);
+        let out = io.next_output();
+        let halt = io.next_output();
+        assert_eq!(out, Some(21));
+        assert_eq!(halt, None);
+        thread.join().expect("could not join thread");
+    }
+
+    #[test]
     fn test_io() {
-        let program = Program::new(&[3, 0, 4, 0, 99]);
-        let output = program.run([42].iter());
+        let p = ProgramRunner::new(&[3, 0, 4, 0, 99]);
+        let output = p.run_with(&[42]);
         assert_eq!(output, vec![42]);
     }
 
     #[test]
     fn test_param() {
-        let program = Program::new(&[1101, 100, -1, 4, 0]);
-        let output = program.run([].iter());
+        let p = ProgramRunner::new(&[1101, 100, -1, 4, 0]);
+        let output = p.run_with(&[]);
         assert_eq!(output, vec![]);
     }
 
     #[test]
     fn test_compare_equal_position_mode() {
-        let program = Program::new(&[3, 9, 8, 9, 10, 9, 4, 9, 99, -1, 8]);
-        let output1 = program.run([7].iter());
-        let output2 = program.run([8].iter());
-        let output3 = program.run([9].iter());
+        let p = ProgramRunner::new(&[3, 9, 8, 9, 10, 9, 4, 9, 99, -1, 8]);
+        let output1 = p.run_with(&[7]);
+        let output2 = p.run_with(&[8]);
+        let output3 = p.run_with(&[9]);
         assert_eq!(output1, vec![0]);
         assert_eq!(output2, vec![1]);
         assert_eq!(output3, vec![0]);
@@ -207,10 +288,10 @@ mod tests {
 
     #[test]
     fn test_compare_less_than_position_mode() {
-        let program = Program::new(&[3, 9, 7, 9, 10, 9, 4, 9, 99, -1, 8]);
-        let output1 = program.run([7].iter());
-        let output2 = program.run([8].iter());
-        let output3 = program.run([9].iter());
+        let p = ProgramRunner::new(&[3, 9, 7, 9, 10, 9, 4, 9, 99, -1, 8]);
+        let output1 = p.run_with(&[7]);
+        let output2 = p.run_with(&[8]);
+        let output3 = p.run_with(&[9]);
         assert_eq!(output1, vec![1]);
         assert_eq!(output2, vec![0]);
         assert_eq!(output3, vec![0]);
@@ -218,10 +299,10 @@ mod tests {
 
     #[test]
     fn test_compare_equal_immediate_mode() {
-        let program = Program::new(&[3, 3, 1108, -1, 8, 3, 4, 3, 99]);
-        let output1 = program.run([7].iter());
-        let output2 = program.run([8].iter());
-        let output3 = program.run([9].iter());
+        let p = ProgramRunner::new(&[3, 3, 1108, -1, 8, 3, 4, 3, 99]);
+        let output1 = p.run_with(&[7]);
+        let output2 = p.run_with(&[8]);
+        let output3 = p.run_with(&[9]);
         assert_eq!(output1, vec![0]);
         assert_eq!(output2, vec![1]);
         assert_eq!(output3, vec![0]);
@@ -229,10 +310,10 @@ mod tests {
 
     #[test]
     fn test_compare_less_than_immediate_mode() {
-        let program = Program::new(&[3, 3, 1107, -1, 8, 3, 4, 3, 99]);
-        let output1 = program.run([7].iter());
-        let output2 = program.run([8].iter());
-        let output3 = program.run([9].iter());
+        let p = ProgramRunner::new(&[3, 3, 1107, -1, 8, 3, 4, 3, 99]);
+        let output1 = p.run_with(&[7]);
+        let output2 = p.run_with(&[8]);
+        let output3 = p.run_with(&[9]);
         assert_eq!(output1, vec![1]);
         assert_eq!(output2, vec![0]);
         assert_eq!(output3, vec![0]);
@@ -240,32 +321,32 @@ mod tests {
 
     #[test]
     fn test_jump_position() {
-        let program = Program::new(&[3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9]);
-        let output1 = program.run([0].iter());
-        let output2 = program.run([2].iter());
+        let p = ProgramRunner::new(&[3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9]);
+        let output1 = p.run_with(&[0]);
+        let output2 = p.run_with(&[2]);
         assert_eq!(output1, vec![0]);
         assert_eq!(output2, vec![1]);
     }
 
     #[test]
     fn test_jump_immediate() {
-        let program = Program::new(&[3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1]);
-        let output1 = program.run([0].iter());
-        let output2 = program.run([2].iter());
+        let p = ProgramRunner::new(&[3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1]);
+        let output1 = p.run_with(&[0]);
+        let output2 = p.run_with(&[2]);
         assert_eq!(output1, vec![0]);
         assert_eq!(output2, vec![1]);
     }
 
     #[test]
     fn test_large() {
-        let program = Program::new(&[
+        let p = ProgramRunner::new(&[
             3, 21, 1008, 21, 8, 20, 1005, 20, 22, 107, 8, 21, 20, 1006, 20, 31, 1106, 0, 36, 98, 0,
             0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1, 46, 1101, 1000, 1, 20, 4,
             20, 1105, 1, 46, 98, 99,
         ]);
-        let output1 = program.run([5].iter());
-        let output2 = program.run([8].iter());
-        let output3 = program.run([13].iter());
+        let output1 = p.run_with(&[5]);
+        let output2 = p.run_with(&[8]);
+        let output3 = p.run_with(&[13]);
         assert_eq!(output1, vec![999]);
         assert_eq!(output2, vec![1000]);
         assert_eq!(output3, vec![1001]);
