@@ -351,4 +351,15 @@ mod tests {
         assert_eq!(output2, vec![1000]);
         assert_eq!(output3, vec![1001]);
     }
+
+    #[test]
+    fn test_quine() {
+        let intcode = vec![
+            4, 0, 1005, 1, 19, 104, 0, 104, 1005, 104, 1, 104, 19, 104, 104, 101, 5, 1, 1, 101, 1,
+            1, 1, 1007, 1, 31, 5, 1005, 5, 0, 99,
+        ];
+        let p = ProgramRunner::new(&intcode);
+        let output = p.run_with(&[]);
+        assert_eq!(output, intcode);
+    }
 }
