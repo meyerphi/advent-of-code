@@ -181,30 +181,30 @@ fn run_amplifiers(program: &[i32], phase_settings: &[i32; 5], feedback: bool) ->
     c_out.send(Some(phase_settings[3])).unwrap();
     d_out.send(Some(phase_settings[4])).unwrap();
 
-    let a = Program::new(&program, a_in, a_out);
-    let b = Program::new(&program, b_in, b_out);
-    let c = Program::new(&program, c_in, c_out);
-    let d = Program::new(&program, d_in, d_out);
-    let e = Program::new(&program, e_in, e_out);
+    let amp_a = Program::new(&program, a_in, a_out);
+    let amp_b = Program::new(&program, b_in, b_out);
+    let amp_c = Program::new(&program, c_in, c_out);
+    let amp_d = Program::new(&program, d_in, d_out);
+    let amp_e = Program::new(&program, e_in, e_out);
 
     let a_thread = std::thread::spawn(move || {
-        a.run();
+        amp_a.run();
     });
     let b_thread = std::thread::spawn(move || {
-        b.run();
+        amp_b.run();
     });
     let c_thread = std::thread::spawn(move || {
-        c.run();
+        amp_c.run();
     });
     let d_thread = std::thread::spawn(move || {
-        d.run();
+        amp_d.run();
     });
     let e_thread = std::thread::spawn(move || {
-        e.run();
+        amp_e.run();
     });
 
     input.send(Some(0)).unwrap();
-    let result = if feedback {
+    let final_output = if feedback {
         let mut last_output = None;
         while let Some(out) = output.recv().unwrap() {
             last_output = Some(out);
@@ -215,6 +215,7 @@ fn run_amplifiers(program: &[i32], phase_settings: &[i32; 5], feedback: bool) ->
     } else {
         output.recv().unwrap()
     };
+    let result = final_output.expect("final amplifier did not produce any output");
 
     a_thread.join().expect("could not join thread");
     b_thread.join().expect("could not join thread");
@@ -222,7 +223,7 @@ fn run_amplifiers(program: &[i32], phase_settings: &[i32; 5], feedback: bool) ->
     d_thread.join().expect("could not join thread");
     e_thread.join().expect("could not join thread");
 
-    result.unwrap()
+    result
 }
 
 fn next_phase(phase: &mut [i32; 5]) -> bool {
