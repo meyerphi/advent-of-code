@@ -1,4 +1,5 @@
 mod common;
+use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 
@@ -85,44 +86,20 @@ impl ProgramState {
     }
 }
 
-struct ProgramIO {
-    is: Sender<i32>,
-    or: Receiver<Option<i32>>,
-}
-
-impl ProgramIO {
-    fn new(is: Sender<i32>, or: Receiver<Option<i32>>) -> ProgramIO {
-        ProgramIO { is, or }
-    }
-    fn send_input(&self, i: i32) {
-        self.is.send(i).expect("could not send input");
-    }
-    fn next_output(&self) -> Option<i32> {
-        self.or.recv().expect("could not send input")
-    }
-}
-
 struct Program {
     program: Vec<i32>,
-    ir: Receiver<i32>,
+    ir: Receiver<Option<i32>>,
     os: Sender<Option<i32>>,
 }
 
 impl Program {
-    fn new(program: &[i32], ir: Receiver<i32>, os: Sender<Option<i32>>) -> Program {
+    fn new(program: &[i32], ir: Receiver<Option<i32>>, os: Sender<Option<i32>>) -> Program {
         Program {
             program: program.to_vec(),
             ir,
             os,
         }
     }
-
-    fn with_io(program: &[i32]) -> (Program, ProgramIO) {
-        let (is, ir) = std::sync::mpsc::channel::<i32>();
-        let (os, or) = std::sync::mpsc::channel::<Option<i32>>();
-        (Program::new(program, ir, os), ProgramIO::new(is, or))
-    }
-
     fn run(&self) {
         let mut state = ProgramState {
             mem: self.program.clone(),
@@ -142,13 +119,15 @@ impl Program {
                     state.increase_pointer(4);
                 }
                 OpCode::Input => {
-                    let i = self.ir.recv().unwrap();
+                    // panic if there is no more input
+                    let i = self.ir.recv().unwrap().unwrap();
                     state.write_value(0, i);
                     state.increase_pointer(2);
                 }
                 OpCode::Output => {
                     let o = state.fetch_value(0, &p);
-                    self.os.send(Some(o)).unwrap();
+                    // ignore send errors
+                    let _ = self.os.send(Some(o));
                     state.increase_pointer(2);
                 }
                 OpCode::JumpIf(condition) => {
@@ -179,7 +158,8 @@ impl Program {
                     state.increase_pointer(4);
                 }
                 OpCode::Halt => {
-                    self.os.send(None).expect("could not send halt output");
+                    // ignore send errors
+                    let _ = self.os.send(None);
                     break;
                 }
             }
@@ -187,12 +167,25 @@ impl Program {
     }
 }
 
-fn run_amplifiers(program: &[i32], phase_settings: &[i32; 5]) -> i32 {
-    let (a, a_io) = Program::with_io(&program);
-    let (b, b_io) = Program::with_io(&program);
-    let (c, c_io) = Program::with_io(&program);
-    let (d, d_io) = Program::with_io(&program);
-    let (e, e_io) = Program::with_io(&program);
+fn run_amplifiers(program: &[i32], phase_settings: &[i32; 5], feedback: bool) -> i32 {
+    let (input, a_in) = channel::<Option<i32>>();
+    let (a_out, b_in) = channel::<Option<i32>>();
+    let (b_out, c_in) = channel::<Option<i32>>();
+    let (c_out, d_in) = channel::<Option<i32>>();
+    let (d_out, e_in) = channel::<Option<i32>>();
+    let (e_out, output) = channel::<Option<i32>>();
+
+    input.send(Some(phase_settings[0])).unwrap();
+    a_out.send(Some(phase_settings[1])).unwrap();
+    b_out.send(Some(phase_settings[2])).unwrap();
+    c_out.send(Some(phase_settings[3])).unwrap();
+    d_out.send(Some(phase_settings[4])).unwrap();
+
+    let a = Program::new(&program, a_in, a_out);
+    let b = Program::new(&program, b_in, b_out);
+    let c = Program::new(&program, c_in, c_out);
+    let d = Program::new(&program, d_in, d_out);
+    let e = Program::new(&program, e_in, e_out);
 
     let a_thread = std::thread::spawn(move || {
         a.run();
@@ -210,27 +203,26 @@ fn run_amplifiers(program: &[i32], phase_settings: &[i32; 5]) -> i32 {
         e.run();
     });
 
-    a_io.send_input(phase_settings[0]);
-    b_io.send_input(phase_settings[1]);
-    c_io.send_input(phase_settings[2]);
-    d_io.send_input(phase_settings[3]);
-    e_io.send_input(phase_settings[4]);
-
-    a_io.send_input(0);
-    b_io.send_input(a_io.next_output().unwrap());
-    c_io.send_input(b_io.next_output().unwrap());
-    d_io.send_input(c_io.next_output().unwrap());
-    e_io.send_input(d_io.next_output().unwrap());
-    let result = e_io
-        .next_output()
-        .expect("last amplifier produced no output");
+    input.send(Some(0)).unwrap();
+    let result = if feedback {
+        let mut last_output = None;
+        while let Some(out) = output.recv().unwrap() {
+            last_output = Some(out);
+            // ignore error in case first thread has already terminated
+            let _ = input.send(Some(out));
+        }
+        last_output
+    } else {
+        output.recv().unwrap()
+    };
 
     a_thread.join().expect("could not join thread");
     b_thread.join().expect("could not join thread");
     c_thread.join().expect("could not join thread");
     d_thread.join().expect("could not join thread");
     e_thread.join().expect("could not join thread");
-    result
+
+    result.unwrap()
 }
 
 fn next_phase(phase: &mut [i32; 5]) -> bool {
@@ -255,11 +247,15 @@ fn next_phase(phase: &mut [i32; 5]) -> bool {
     true
 }
 
-fn find_best_phase_setting(program: &[i32]) -> i32 {
-    let mut phase: [i32; 5] = [0, 1, 2, 3, 4];
+fn find_best_phase_setting(program: &[i32], feedback: bool) -> i32 {
+    let mut phase: [i32; 5] = if feedback {
+        [5, 6, 7, 8, 9]
+    } else {
+        [0, 1, 2, 3, 4]
+    };
     let mut max = -1;
     loop {
-        let output = run_amplifiers(&program, &phase);
+        let output = run_amplifiers(&program, &phase, feedback);
         max = std::cmp::max(max, output);
         if !next_phase(&mut phase) {
             break;
@@ -278,8 +274,11 @@ fn main() {
         })
         .collect();
     for program in input {
-        let result1 = find_best_phase_setting(&program);
-        println!("Part1: Highest signal is {}", result1)
+        let result1 = find_best_phase_setting(&program, false);
+        println!("Part1: Highest signal is {}", result1);
+
+        let result2 = find_best_phase_setting(&program, true);
+        println!("Part2: Highest signal is {}", result2);
     }
 }
 
@@ -293,9 +292,9 @@ mod tests {
             3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0,
         ];
         let phases = [4, 3, 2, 1, 0];
-        let result = run_amplifiers(&program, &phases);
+        let result = run_amplifiers(&program, &phases, false);
         assert_eq!(result, 43210);
-        let optimal = find_best_phase_setting(&program);
+        let optimal = find_best_phase_setting(&program, false);
         assert_eq!(optimal, 43210);
     }
 
@@ -306,9 +305,9 @@ mod tests {
             99, 0, 0,
         ];
         let phases = [0, 1, 2, 3, 4];
-        let result = run_amplifiers(&program, &phases);
+        let result = run_amplifiers(&program, &phases, false);
         assert_eq!(result, 54321);
-        let optimal = find_best_phase_setting(&program);
+        let optimal = find_best_phase_setting(&program, false);
         assert_eq!(optimal, 54321);
     }
 
@@ -319,9 +318,36 @@ mod tests {
             33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0,
         ];
         let phases = [1, 0, 4, 3, 2];
-        let result = run_amplifiers(&program, &phases);
+        let result = run_amplifiers(&program, &phases, false);
         assert_eq!(result, 65210);
-        let optimal = find_best_phase_setting(&program);
+        let optimal = find_best_phase_setting(&program, false);
         assert_eq!(optimal, 65210);
+    }
+
+    #[test]
+    fn test_feedback_example1() {
+        let program = [
+            3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1,
+            28, 1005, 28, 6, 99, 0, 0, 5,
+        ];
+        let phases = [9, 8, 7, 6, 5];
+        let result = run_amplifiers(&program, &phases, true);
+        assert_eq!(result, 139_629_729);
+        let optimal = find_best_phase_setting(&program, true);
+        assert_eq!(optimal, 139_629_729);
+    }
+
+    #[test]
+    fn test_feedback_example2() {
+        let program = [
+            3, 52, 1001, 52, -5, 52, 3, 53, 1, 52, 56, 54, 1007, 54, 5, 55, 1005, 55, 26, 1001, 54,
+            -5, 54, 1105, 1, 12, 1, 53, 54, 53, 1008, 54, 0, 55, 1001, 55, 1, 55, 2, 53, 55, 53, 4,
+            53, 1001, 56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10,
+        ];
+        let phases = [9, 7, 8, 5, 6];
+        let result = run_amplifiers(&program, &phases, true);
+        assert_eq!(result, 18216);
+        let optimal = find_best_phase_setting(&program, true);
+        assert_eq!(optimal, 18216);
     }
 }
