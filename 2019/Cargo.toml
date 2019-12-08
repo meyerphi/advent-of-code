@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 itertools = "0.8"
+generic-array = "0.13"
 
 [[bin]]
 name="day1"
@@ -36,3 +37,7 @@ path="src/day6.rs"
 [[bin]]
 name="day7"
 path="src/day7.rs"
+
+[[bin]]
+name="day8"
+path="src/day8.rs"
