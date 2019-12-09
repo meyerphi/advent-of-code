@@ -266,6 +266,9 @@ fn main() {
 
         let output1 = p.run_with(&[1]);
         println!("Part1: Program output is: {:?}", output1);
+
+        let output2 = p.run_with(&[2]);
+        println!("Part2: Program output is: {:?}", output2);
     }
 }
 
