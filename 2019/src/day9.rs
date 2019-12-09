@@ -27,32 +27,11 @@ enum OpCode {
     AdjustRelativeBase,
     Halt,
 }
-struct ParamOpCode {
-    opcode: OpCode,
-    params: [u8; 3],
-}
-
-fn parse_opcode(code: i64) -> ParamOpCode {
-    let param1 = ((code / 100) % 10) as u8;
-    let param2 = ((code / 1000) % 10) as u8;
-    let param3 = ((code / 10000) % 10) as u8;
-    let opcode = match code % 100 {
-        1 => OpCode::Arith(Op::Add),
-        2 => OpCode::Arith(Op::Mul),
-        3 => OpCode::Input,
-        4 => OpCode::Output,
-        5 => OpCode::JumpIf(Cnd::True),
-        6 => OpCode::JumpIf(Cnd::False),
-        7 => OpCode::Compare(Cmp::LessThan),
-        8 => OpCode::Compare(Cmp::Equal),
-        9 => OpCode::AdjustRelativeBase,
-        99 => OpCode::Halt,
-        _ => panic!("unknown opcode"),
-    };
-    ParamOpCode {
-        opcode,
-        params: [param1, param2, param3],
-    }
+#[derive(PartialEq, Eq, Copy, Clone)]
+enum Mode {
+    Position,
+    Immediate,
+    Relative,
 }
 
 struct ProgramState {
@@ -62,19 +41,50 @@ struct ProgramState {
 }
 
 impl ProgramState {
-    fn fetch_opcode(&self) -> i64 {
-        self.mem[self.pointer]
+    fn from_program(program: &Program) -> ProgramState {
+        ProgramState {
+            mem: program.program.clone(),
+            pointer: 0,
+            relative_base: 0,
+        }
     }
 
-    fn increase_pointer(&mut self, position: usize) {
-        self.pointer += position;
+    fn fetch_opcode(&self) -> OpCode {
+        let opcode = self.mem[self.pointer] % 100;
+        match opcode {
+            1 => OpCode::Arith(Op::Add),
+            2 => OpCode::Arith(Op::Mul),
+            3 => OpCode::Input,
+            4 => OpCode::Output,
+            5 => OpCode::JumpIf(Cnd::True),
+            6 => OpCode::JumpIf(Cnd::False),
+            7 => OpCode::Compare(Cmp::LessThan),
+            8 => OpCode::Compare(Cmp::Equal),
+            9 => OpCode::AdjustRelativeBase,
+            99 => OpCode::Halt,
+            _ => panic!("unknown opcode"),
+        }
+    }
+
+    fn fetch_mode(&self, arg: usize) -> Mode {
+        let mode = (self.mem[self.pointer] / 10i64.pow(arg as u32 + 2)) % 10;
+        match mode {
+            0 => Mode::Position,
+            1 => Mode::Immediate,
+            2 => Mode::Relative,
+            _ => panic!("unknown mode"),
+        }
+    }
+
+    fn increase_pointer(&mut self, adjustment: usize) {
+        self.pointer += adjustment;
     }
 
     fn set_pointer(&mut self, position: usize) {
         self.pointer = position;
     }
 
-    fn adjust_relative_base(&mut self, adjustment: i64) {
+    fn increase_relative_base(&mut self, adjustment: i64) {
         self.relative_base = (self.relative_base as i64 + adjustment) as usize;
     }
 
@@ -84,26 +94,25 @@ impl ProgramState {
         }
     }
 
-    fn fetch_position(&mut self, arg: usize, p: &ParamOpCode) -> usize {
-        let mode = p.params[arg];
+    fn fetch_position(&mut self, arg: usize) -> usize {
+        let mode = self.fetch_mode(arg);
         let base = self.pointer + arg + 1;
         let position = match mode {
-            0 => self.mem[base] as usize,
-            1 => base,
-            2 => (self.relative_base as i64 + self.mem[base]) as usize,
-            _ => panic!("invalid parameter mode "),
+            Mode::Position => self.mem[base] as usize,
+            Mode::Immediate => base,
+            Mode::Relative => (self.relative_base as i64 + self.mem[base]) as usize,
         };
         self.ensure_memory_available(position);
         position
     }
 
-    fn fetch_value(&mut self, arg: usize, p: &ParamOpCode) -> i64 {
-        let position = self.fetch_position(arg, p);
+    fn fetch_value(&mut self, arg: usize) -> i64 {
+        let position = self.fetch_position(arg);
         self.mem[position]
     }
 
-    fn write_value(&mut self, arg: usize, value: i64, p: &ParamOpCode) {
-        let position = self.fetch_position(arg, p);
+    fn write_value(&mut self, arg: usize, value: i64) {
+        let position = self.fetch_position(arg);
         self.mem[position] = value;
     }
 }
@@ -133,7 +142,7 @@ impl ProgramIO {
         self.is.send(i).expect("could not send input");
     }
     fn next_output(&self) -> Option<i64> {
-        self.or.recv().expect("could not send input")
+        self.or.recv().expect("could not receive output")
     }
     fn output_iter(&self) -> OutputIterator {
         OutputIterator { io: &self }
@@ -159,64 +168,55 @@ impl Program {
     }
 
     fn run(&self) {
-        let mut state = ProgramState {
-            mem: self.program.clone(),
-            pointer: 0,
-            relative_base: 0,
-        };
+        let mut state = ProgramState::from_program(&self);
         loop {
-            let p = parse_opcode(state.fetch_opcode());
-            match p.opcode {
+            match state.fetch_opcode() {
                 OpCode::Arith(op) => {
-                    let x = state.fetch_value(0, &p);
-                    let y = state.fetch_value(1, &p);
+                    let x = state.fetch_value(0);
+                    let y = state.fetch_value(1);
                     let z = match op {
                         Op::Add => x + y,
                         Op::Mul => x * y,
                     };
-                    state.write_value(2, z, &p);
+                    state.write_value(2, z);
                     state.increase_pointer(4);
                 }
                 OpCode::Input => {
                     let i = self.ir.recv().unwrap();
-                    state.write_value(0, i, &p);
+                    state.write_value(0, i);
                     state.increase_pointer(2);
                 }
                 OpCode::Output => {
-                    let o = state.fetch_value(0, &p);
+                    let o = state.fetch_value(0);
                     self.os.send(Some(o)).unwrap();
                     state.increase_pointer(2);
                 }
                 OpCode::JumpIf(condition) => {
-                    let x = state.fetch_value(0, &p);
+                    let x = state.fetch_value(0);
                     let matched = match condition {
                         Cnd::True => x != 0,
                         Cnd::False => x == 0,
                     };
                     if matched {
-                        let y = state.fetch_value(1, &p);
+                        let y = state.fetch_value(1);
                         state.set_pointer(y as usize);
                     } else {
                         state.increase_pointer(3);
                     }
                 }
                 OpCode::Compare(comparison) => {
-                    let x = state.fetch_value(0, &p);
-                    let y = state.fetch_value(1, &p);
+                    let x = state.fetch_value(0);
+                    let y = state.fetch_value(1);
                     let result = match comparison {
                         Cmp::LessThan => x < y,
                         Cmp::Equal => x == y,
                     };
-                    if result {
-                        state.write_value(2, 1, &p);
-                    } else {
-                        state.write_value(2, 0, &p);
-                    }
+                    state.write_value(2, result as i64);
                     state.increase_pointer(4);
                 }
                 OpCode::AdjustRelativeBase => {
-                    let x = state.fetch_value(0, &p);
-                    state.adjust_relative_base(x);
+                    let x = state.fetch_value(0);
+                    state.increase_relative_base(x);
                     state.increase_pointer(2);
                 }
                 OpCode::Halt => {
