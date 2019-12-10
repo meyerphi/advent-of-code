@@ -96,7 +96,7 @@ fn rel_length(p: Point2D, q: Point2D, r: Point2D) -> i64 {
 }
 
 // tests if point r is on the line segment (p, q)
-fn point_on_semgent(p: Point2D, q: Point2D, r: Point2D) -> bool {
+fn point_on_segment(p: Point2D, q: Point2D, r: Point2D) -> bool {
     // test if point is on line
     triple_product(p, q, r) == 0 && {
         // test if point is on line segment
@@ -111,6 +111,7 @@ fn point_on_semgent(p: Point2D, q: Point2D, r: Point2D) -> bool {
 // compares angle (p, q, a) with angle (p, q, b)
 // if angle is same, compare by distance to p
 fn compare_by_angle(p: Point2D, q: Point2D, a: Point2D, b: Point2D) -> Ordering {
+    assert!(p != q);
     assert!(a != p);
     assert!(b != p);
     if a == b {
@@ -159,15 +160,38 @@ fn compare_by_angle(p: Point2D, q: Point2D, a: Point2D, b: Point2D) -> Ordering 
 fn can_detect(origin: Point2D, target: Point2D, asteroids: &[Point2D]) -> bool {
     asteroids
         .iter()
-        .all(|&a| a == origin || a == target || !point_on_semgent(origin, target, a))
+        .all(|&a| a == origin || a == target || !point_on_segment(origin, target, a))
 }
 
-fn find_detect(origin: Point2D, asteroids: &[Point2D]) -> Vec<Point2D> {
+#[allow(dead_code)]
+fn find_detect_slow(origin: Point2D, asteroids: &[Point2D]) -> Vec<Point2D> {
     asteroids
         .iter()
         .filter(|&&target| origin != target && can_detect(origin, target, &asteroids))
         .copied()
         .collect()
+}
+
+fn find_detect(origin: Point2D, asteroids: &[Point2D]) -> Vec<Point2D> {
+    let up = Point2D {
+        x: origin.x,
+        y: origin.y - 1,
+    };
+    let mut sorted: Vec<_> = asteroids
+        .iter()
+        .filter(|&&p| p != origin)
+        .copied()
+        .collect();
+    sorted.sort_by(|&a, &b| compare_by_angle(origin, up, a, b));
+    let mut result = Vec::with_capacity(asteroids.len());
+    let mut last_point = origin;
+    for a in sorted {
+        if last_point == origin || !point_on_segment(origin, a, last_point) {
+            last_point = a;
+            result.push(a);
+        }
+    }
+    result
 }
 
 fn max_detect(asteroids: &[Point2D]) -> (Point2D, usize) {
