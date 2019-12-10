@@ -120,34 +120,34 @@ fn compare_by_angle(p: Point2D, q: Point2D, a: Point2D, b: Point2D) -> Ordering 
     let pqb = triple_product(p, q, b);
 
     if pqa == 0 && pqb == 0 {
-        // a and b both on e
+        // a and b both on line (p, q)
         let da = rel_length(p, q, a);
         let db = rel_length(p, q, b);
         if da > 0 && db < 0 {
-            // a in direction of e, but b not
+            // a in direction of (p, q), but b not
             Ordering::Less
         } else if db > 0 && da < 0 {
-            // b in direction of e, but a not
+            // b in direction of (p, q), but a not
             Ordering::Greater
         } else {
             // compare by distance
             da.abs().cmp(&db.abs())
         }
     } else if pqa < 0 && pqb >= 0 {
-        // a on left side and b on right side of e
+        // a on left side and b on right side of (p, q)
         Ordering::Greater
     } else if pqa >= 0 && pqb < 0 {
-        // a on right side and b on left side of e
+        // a on right side and b on left side of (p, q)
         Ordering::Less
     } else {
-        // a and b on same side of e
+        // a and b on same side of (p, q)
         let pba = triple_product(p, b, a);
         if pba < 0 {
             Ordering::Less
         } else if pba > 0 {
             Ordering::Greater
         } else {
-            // a on edge (e.p, b)
+            // a on edge (p, b)
             let da = rel_length(p, b, a);
             let db = rel_length(p, b, b);
             // compare by distance
