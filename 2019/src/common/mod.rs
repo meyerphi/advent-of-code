@@ -1,6 +1,7 @@
 use std::env;
 use std::io::BufRead;
 use std::fs;
+pub mod intcode;
 
 fn get_filename() -> String {
     env::args().nth(1).expect("no filename given")
