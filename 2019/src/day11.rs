@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use ansi_term::Colour::{Black, White};
 mod common;
 use common::intcode;
 
@@ -59,15 +60,40 @@ enum Color {
     White,
 }
 
-fn run_robot(code: &[i64]) -> usize {
+fn print_hull(hull: &HashMap<Point2D, Color>) {
+    let min_x = hull.keys().map(|&p| p.x).min().unwrap_or(0);
+    let max_x = hull.keys().map(|&p| p.x).max().unwrap_or(0);
+    let min_y = hull.keys().map(|&p| p.y).min().unwrap_or(0);
+    let max_y = hull.keys().map(|&p| p.y).max().unwrap_or(0);
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let point = Point2D { x, y };
+            let color = hull.get(&point).copied().unwrap_or(Color::Black);
+            let out = match color {
+                Color::Black => White.on(Black).paint(" "),
+                Color::White => Black.on(White).paint(" "),
+            };
+            print!("{}", out);
+        }
+        println!();
+    }
+}
+
+fn run_robot(code: &[i64], initial: Option<Color>) -> HashMap<Point2D, Color> {
     let mut hull: HashMap<Point2D, Color> = HashMap::new();
+    let mut position = Point2D { x: 0, y: 0 };
+    let mut direction = Direction::U;
+
+    if let Some(initial_color) = initial {
+        hull.insert(position, initial_color);
+    }
+
     let intcode::ProgramRunner { program, io } = intcode::ProgramRunner::new(code);
     let program_thread = std::thread::spawn(move || {
         program.run();
     });
 
-    let mut position = Point2D { x: 0, y: 0 };
-    let mut direction = Direction::U;
     loop {
         let color = hull.get(&position).copied().unwrap_or(Color::Black);
         let input = match color {
@@ -98,7 +124,7 @@ fn run_robot(code: &[i64]) -> usize {
     }
     program_thread.join().expect("could not join thread");
 
-    hull.len()
+    hull
 }
 
 fn main() {
@@ -111,8 +137,12 @@ fn main() {
         })
         .collect();
     for program in input {
-        let result1 = run_robot(&program);
-        println!("Part1: {}", result1);
+        let result1 = run_robot(&program, None);
+        println!("Part1: panels painted on: {}", result1.len());
+
+        let result2 = run_robot(&program, Some(Color::White));
+        println!("Part2:");
+        print_hull(&result2);
     }
 }
 
@@ -126,7 +156,7 @@ mod tests {
             3, 0, 104, 1, 104, 0, 3, 0, 104, 0, 104, 0, 3, 0, 104, 1, 104, 0, 104, 1, 104, 0, 3, 1,
             104, 0, 104, 1, 3, 2, 104, 1, 104, 0, 3, 2, 104, 1, 104, 0, 99,
         ];
-        let result = run_robot(&program);
-        assert_eq!(result, 6);
+        let result = run_robot(&program, None);
+        assert_eq!(result.len(), 6);
     }
 }
