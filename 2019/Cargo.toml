@@ -10,6 +10,7 @@ edition = "2018"
 itertools = "0.8"
 generic-array = "0.13"
 ansi_term = "0.12"
+regex = "1.3"
 
 [[bin]]
 name="day1"
@@ -54,3 +55,7 @@ path="src/day10.rs"
 [[bin]]
 name="day11"
 path="src/day11.rs"
+
+[[bin]]
+name="day12"
+path="src/day12.rs"
