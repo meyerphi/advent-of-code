@@ -1,3 +1,4 @@
+use num::integer::lcm;
 use regex::Regex;
 use std::fmt;
 use std::str::FromStr;
@@ -83,7 +84,11 @@ impl Point3D {
         self.x.abs() + self.y.abs() + self.z.abs()
     }
     fn signum(&self) -> Point3D {
-        Point3D { x: self.x.signum(), y: self.y.signum(), z: self.z.signum() }
+        Point3D {
+            x: self.x.signum(),
+            y: self.y.signum(),
+            z: self.z.signum(),
+        }
     }
 }
 
@@ -139,13 +144,51 @@ fn apply_velocity(moons: &mut Vec<Moon>) {
     }
 }
 
-fn simulate_moons(init: &[Moon], steps: usize) -> Vec<Moon>{
+fn simulate_moons(init: &[Moon], steps: usize) -> Vec<Moon> {
     let mut moons = init.to_vec();
     for _ in 0..steps {
         change_velocity(&mut moons);
         apply_velocity(&mut moons);
     }
     moons
+}
+
+fn find_repeat(init: &[Moon]) -> usize {
+    let mut moons = init.to_vec();
+    let mut repeat_x: Option<usize> = None;
+    let mut repeat_y: Option<usize> = None;
+    let mut repeat_z: Option<usize> = None;
+    for s in 1.. {
+        change_velocity(&mut moons);
+        apply_velocity(&mut moons);
+
+        let (rx, ry, rz): (bool, bool, bool) = init
+            .iter()
+            .zip(moons.iter())
+            .map(|(&m1, &m2)| {
+                (
+                    m1.position.x == m2.position.x && m1.velocity.x == m2.velocity.x,
+                    m1.position.y == m2.position.y && m1.velocity.y == m2.velocity.y,
+                    m1.position.z == m2.position.z && m1.velocity.z == m2.velocity.z,
+                )
+            })
+            .fold((true, true, true), |(rx, ry, rz), (x, y, z)| {
+                (rx && x, ry && y, rz && z)
+            });
+        if repeat_x == None && rx {
+            repeat_x = Some(s);
+        }
+        if repeat_y == None && ry {
+            repeat_y = Some(s);
+        }
+        if repeat_z == None && rz {
+            repeat_z = Some(s);
+        }
+        if let (Some(x), Some(y), Some(z)) = (repeat_x, repeat_y, repeat_z) {
+            return lcm(lcm(x, y), z);
+        }
+    }
+    unreachable!()
 }
 
 fn total_energy(moons: &[Moon]) -> i64 {
@@ -161,6 +204,8 @@ fn main() {
     let result_moons = simulate_moons(&moons, 1000);
     let result1 = total_energy(&result_moons);
     println!("Part1: total energy after 100 steps is {}", result1);
+    let result2 = find_repeat(&moons);
+    println!("Part2: universe repeats after {} steps", result2);
 }
 
 #[cfg(test)]
@@ -179,6 +224,8 @@ mod tests {
         let moons = simulate_moons(&init, 10);
         let result = total_energy(&moons);
         assert_eq!(result, 179);
+        let repeat_num = find_repeat(&init);
+        assert_eq!(repeat_num, 2772);
         let repeat = simulate_moons(&init, 2772);
         assert_eq!(init, repeat);
     }
@@ -191,9 +238,11 @@ mod tests {
             "<x=2, y=-7, z=3>",
             "<x=9, y=-8, z=-3>",
         ];
-        let mut moons = parse_moons(input.iter().map(|s| s.to_string()).collect());
+        let moons = parse_moons(input.iter().map(|s| s.to_string()).collect());
         let result_moons = simulate_moons(&moons, 100);
         let result = total_energy(&result_moons);
         assert_eq!(result, 1940);
+        let repeat_num = find_repeat(&moons);
+        assert_eq!(repeat_num, 4_686_774_924);
     }
 }
