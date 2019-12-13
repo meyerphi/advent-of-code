@@ -1,5 +1,5 @@
+use ansi_term::{Colour, Style};
 use std::collections::HashMap;
-use ansi_term::{Style, Colour};
 mod common;
 use common::intcode;
 
@@ -24,7 +24,9 @@ struct Screen {
 
 impl Screen {
     fn new(width: usize, height: usize) -> Screen {
-        Screen { board: vec![vec![Tile::Empty; width]; height] }
+        Screen {
+            board: vec![vec![Tile::Empty; width]; height],
+        }
     }
     fn get(&self, x: usize, y: usize) -> Tile {
         self.board[y][x]
@@ -33,7 +35,11 @@ impl Screen {
         self.board[y][x] = t;
     }
     fn count(&self, t: Tile) -> usize {
-        self.board.iter().flat_map(|r| r.iter()).filter(|&&u| u == t).count()
+        self.board
+            .iter()
+            .flat_map(|r| r.iter())
+            .filter(|&&u| u == t)
+            .count()
     }
     fn print(&self) {
         let empty_style = Style::new().on(Colour::White);
@@ -115,9 +121,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let program = vec![
-            104, 1, 104, 2, 104, 3, 104, 6, 104, 5, 104, 4, 99
-        ];
+        let program = vec![104, 1, 104, 2, 104, 3, 104, 6, 104, 5, 104, 4, 99];
         let screen = construct_screen(&program);
         let paddles = screen.count(Tile::Paddle);
         let balls = screen.count(Tile::Ball);
