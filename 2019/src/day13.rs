@@ -137,6 +137,7 @@ fn outputter(or: Receiver<Option<i64>>, screen: Arc<Mutex<Screen>>, mut score: i
             let t = parse_tile(z);
             screen.lock().unwrap().set(x as usize, y as usize, t);
         }
+        print!("{}[2J", 27 as char);
         screen.lock().unwrap().print();
         println!("Score: {}", score);
     }
@@ -145,8 +146,8 @@ fn outputter(or: Receiver<Option<i64>>, screen: Arc<Mutex<Screen>>, mut score: i
 fn inputter(is: Sender<i64>, screen: Arc<Mutex<Screen>>) {
     let mut inputs = Vec::new();
     loop {
-        let ten_millis = time::Duration::from_millis(10);
-        thread::sleep(ten_millis);
+        let update_time = time::Duration::from_millis(100);
+        thread::sleep(update_time);
         let paddle;
         let ball;
         {
