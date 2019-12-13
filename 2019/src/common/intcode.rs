@@ -118,8 +118,8 @@ impl ProgramState {
 }
 
 pub struct ProgramIO {
-    is: Sender<i64>,
-    or: Receiver<Option<i64>>,
+    pub is: Sender<i64>,
+    pub or: Receiver<Option<i64>>,
 }
 
 pub struct OutputIterator<'a> {
