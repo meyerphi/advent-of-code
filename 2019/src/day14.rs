@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::str::FromStr;
 mod common;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 struct ChemicalAmount {
     amount: u64,
     chemical: String,
@@ -100,10 +100,10 @@ fn build_reaction_graph(reactions: &[Reaction]) -> Result<ReactionGraph, &'stati
 fn find_minimimum_amount(
     graph: &ReactionGraph,
     order: &[String],
-    target: &ChemicalAmount,
+    target: ChemicalAmount,
 ) -> Vec<ChemicalAmount> {
     let mut amount: HashMap<String, u64> = HashMap::new();
-    amount.insert(target.chemical.clone(), target.amount);
+    amount.insert(target.chemical, target.amount);
     let mut needed: Vec<ChemicalAmount> = Vec::new();
     for cur_target in order.iter() {
         let cur_amount = amount.get(cur_target).copied().unwrap_or(0);
@@ -139,7 +139,7 @@ fn minimum_amount_of_ore_for_fuel(
         amount: target_fuel,
         chemical: "FUEL".to_string(),
     };
-    let needed = find_minimimum_amount(&graph, &order, &target);
+    let needed = find_minimimum_amount(&graph, &order, target);
     if needed.len() != 1 || needed[0].chemical != "ORE" {
         return Err("can not produce FUEL with only ORE");
     }
