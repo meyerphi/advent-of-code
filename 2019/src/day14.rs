@@ -76,7 +76,11 @@ impl<'a> ReactionGraph<'a> {
             }
             order.push(s);
         }
-        Ok(order)
+        if incoming_count.values().any(|&c| c != 0) {
+            Err("graph is not acylic")
+        } else {
+            Ok(order)
+        }
     }
 }
 
@@ -126,14 +130,17 @@ fn find_minimimum_amount(
     needed
 }
 
-fn minimum_amount_of_ore_for_fuel(graph: &ReactionGraph, order: &[String], target_fuel: u64) -> Result<u64, &'static str> {
+fn minimum_amount_of_ore_for_fuel(
+    graph: &ReactionGraph,
+    order: &[String],
+    target_fuel: u64,
+) -> Result<u64, &'static str> {
     let target = ChemicalAmount {
         amount: target_fuel,
         chemical: "FUEL".to_string(),
     };
     let needed = find_minimimum_amount(&graph, &order, &target);
     if needed.len() != 1 || needed[0].chemical != "ORE" {
-        print!("Needed elements: {:?}", needed);
         return Err("can not produce FUEL with only ORE");
     }
     Ok(needed[0].amount)
@@ -149,17 +156,15 @@ fn part1(reactions: &[Reaction]) -> Result<u64, &'static str> {
 fn part2(reactions: &[Reaction]) -> Result<u64, &'static str> {
     let graph = build_reaction_graph(&reactions)?;
     let order = graph.topological_sort()?;
- 
     const CARGO_ORE: u64 = 1_000_000_000_000;
     let mut lower: u64 = 1;
-    let mut upper: u64 = 1_000_000_000_000;
+    let mut upper: u64 = CARGO_ORE;
     while upper - lower >= 2 {
         let fuel = (lower + upper) / 2;
         let ore = minimum_amount_of_ore_for_fuel(&graph, &order, fuel)?;
         if ore <= CARGO_ORE {
             lower = fuel;
-        }
-        else {
+        } else {
             upper = fuel;
         }
     }
@@ -176,7 +181,10 @@ fn main() -> Result<(), &'static str> {
     println!("Part1: minimum amount of ORE for one FUEL is {}", result1);
 
     let result2 = part2(&reactions)?;
-    println!("Part2: maximum amount of fuel that can be produced is {}", result2);
+    println!(
+        "Part2: maximum amount of fuel that can be produced is {}",
+        result2
+    );
 
     Ok(())
 }
