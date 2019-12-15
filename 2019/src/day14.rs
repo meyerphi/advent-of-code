@@ -6,7 +6,7 @@ mod common;
 
 #[derive(Debug, PartialEq, Eq)]
 struct ChemicalAmount {
-    amount: u32,
+    amount: u64,
     chemical: String,
 }
 
@@ -17,7 +17,7 @@ impl FromStr for ChemicalAmount {
         let re = Regex::new("(?P<amount>[0-9]*) (?P<chemical>[A-Z]*)").unwrap();
         let caps = re.captures(s).ok_or("could not chemical amount")?;
         let amount = caps["amount"]
-            .parse::<u32>()
+            .parse::<u64>()
             .map_err(|_| "could not parse amount")?;
         let chemical = caps["chemical"].to_string();
         Ok(ChemicalAmount { amount, chemical })
@@ -52,7 +52,7 @@ struct ReactionGraph<'a> {
 
 impl<'a> ReactionGraph<'a> {
     fn topological_sort(&self) -> Result<Vec<String>, &'static str> {
-        let mut incoming_count: HashMap<String, u32> = HashMap::new();
+        let mut incoming_count: HashMap<String, u64> = HashMap::new();
         for r in self.nodes.values() {
             incoming_count.entry(r.rhs.chemical.clone()).or_insert(0);
             for lhs in r.lhs.iter() {
@@ -98,7 +98,7 @@ fn find_minimimum_amount(
     order: &[String],
     target: &ChemicalAmount,
 ) -> Vec<ChemicalAmount> {
-    let mut amount: HashMap<String, u32> = HashMap::new();
+    let mut amount: HashMap<String, u64> = HashMap::new();
     amount.insert(target.chemical.clone(), target.amount);
     let mut needed: Vec<ChemicalAmount> = Vec::new();
     for cur_target in order.iter() {
@@ -122,16 +122,13 @@ fn find_minimimum_amount(
                 });
             }
         }
-        //let entry = amount
     }
     needed
 }
 
-fn part1(reactions: &[Reaction]) -> Result<u32, &'static str> {
-    let graph = build_reaction_graph(&reactions)?;
-    let order = graph.topological_sort()?;
+fn minimum_amount_of_ore_for_fuel(graph: &ReactionGraph, order: &[String], target_fuel: u64) -> Result<u64, &'static str> {
     let target = ChemicalAmount {
-        amount: 1,
+        amount: target_fuel,
         chemical: "FUEL".to_string(),
     };
     let needed = find_minimimum_amount(&graph, &order, &target);
@@ -140,6 +137,33 @@ fn part1(reactions: &[Reaction]) -> Result<u32, &'static str> {
         return Err("can not produce FUEL with only ORE");
     }
     Ok(needed[0].amount)
+}
+
+fn part1(reactions: &[Reaction]) -> Result<u64, &'static str> {
+    let graph = build_reaction_graph(&reactions)?;
+    let order = graph.topological_sort()?;
+    let result = minimum_amount_of_ore_for_fuel(&graph, &order, 1)?;
+    Ok(result)
+}
+
+fn part2(reactions: &[Reaction]) -> Result<u64, &'static str> {
+    let graph = build_reaction_graph(&reactions)?;
+    let order = graph.topological_sort()?;
+ 
+    const CARGO_ORE: u64 = 1_000_000_000_000;
+    let mut lower: u64 = 1;
+    let mut upper: u64 = 1_000_000_000_000;
+    while upper - lower >= 2 {
+        let fuel = (lower + upper) / 2;
+        let ore = minimum_amount_of_ore_for_fuel(&graph, &order, fuel)?;
+        if ore <= CARGO_ORE {
+            lower = fuel;
+        }
+        else {
+            upper = fuel;
+        }
+    }
+    Ok(lower)
 }
 
 fn main() -> Result<(), &'static str> {
@@ -151,6 +175,9 @@ fn main() -> Result<(), &'static str> {
     let result1 = part1(&reactions)?;
     println!("Part1: minimum amount of ORE for one FUEL is {}", result1);
 
+    let result2 = part2(&reactions)?;
+    println!("Part2: maximum amount of fuel that can be produced is {}", result2);
+
     Ok(())
 }
 
@@ -158,13 +185,21 @@ fn main() -> Result<(), &'static str> {
 mod tests {
     use super::*;
 
-    fn test_ore_to_fuel(input: &[&str], expected_ore: u32) {
+    fn test_ore_to_fuel(input: &[&str], expected_ore: u64) {
         let reactions = input
             .iter()
             .map(|s| s.parse::<Reaction>().unwrap())
             .collect::<Vec<_>>();
         let needed = part1(&reactions).unwrap();
         assert_eq!(needed, expected_ore);
+    }
+    fn test_fuel_for_ore(input: &[&str], expected_fuel: u64) {
+        let reactions = input
+            .iter()
+            .map(|s| s.parse::<Reaction>().unwrap())
+            .collect::<Vec<_>>();
+        let possible = part2(&reactions).unwrap();
+        assert_eq!(possible, expected_fuel);
     }
     #[test]
     fn test_example1() {
@@ -206,6 +241,7 @@ mod tests {
             "3 DCFZ, 7 NZVS, 5 HKGWZ, 10 PSHF => 8 KHKGT",
         ];
         test_ore_to_fuel(&input, 13312);
+        test_fuel_for_ore(&input, 82_892_753);
     }
 
     #[test]
@@ -225,6 +261,7 @@ mod tests {
             "176 ORE => 6 VJHF",
         ];
         test_ore_to_fuel(&input, 180_697);
+        test_fuel_for_ore(&input, 5_586_022);
     }
 
     #[test]
@@ -249,5 +286,6 @@ mod tests {
             "5 BHXH, 4 VRPVC => 5 LTCX",
         ];
         test_ore_to_fuel(&input, 2_210_736);
+        test_fuel_for_ore(&input, 460_664);
     }
 }
