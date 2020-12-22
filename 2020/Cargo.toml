@@ -5,6 +5,7 @@ authors = ["Philipp Meyer"]
 edition = "2018"
 
 [dependencies]
+regex = "1.4.2"
 
 [[bin]]
 name="day1"
@@ -17,3 +18,7 @@ path="src/day2.rs"
 [[bin]]
 name="day3"
 path="src/day3.rs"
+
+[[bin]]
+name="day4"
+path="src/day4.rs"
