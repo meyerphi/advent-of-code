@@ -39,23 +39,19 @@ where
     I: Iterator<Item = T>,
     T: std::fmt::Display + Eq,
 {
-    loop {
-        if lower + 1 == upper {
-            return Ok(lower);
-        }
-        if let Some(dir) = iter.next() {
-            let mid = (lower + upper) / 2;
-            if dir == down {
-                upper = mid;
-            } else if dir == up {
-                lower = mid;
-            } else {
-                return Err(format!("invalid direction: {}", dir));
-            }
+    assert!(lower < upper);
+    while upper - lower >= 2 {
+        let mid = lower + ((upper - lower) / 2);
+        let dir = iter.next().ok_or_else(|| "not enough directions".to_string())?;
+        if dir == down {
+            upper = mid;
+        } else if dir == up {
+            lower = mid;
         } else {
-            return Err("not enough directions".to_string());
+            return Err(format!("invalid direction: {}", dir));
         }
     }
+    Ok(lower)
 }
 
 impl FromStr for Seat {
